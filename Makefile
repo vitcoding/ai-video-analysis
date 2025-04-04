@@ -13,3 +13,7 @@ stop-$(OLLAMA-NAME):
 	docker compose -f $(OLLAMA-DC) stop
 start-$(OLLAMA-NAME):
 	docker compose -f $(OLLAMA-DC) start
+
+# projects
+app-prj:
+	codium app
