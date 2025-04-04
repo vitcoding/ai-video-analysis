@@ -1,0 +1,24 @@
+services:
+  ollama-video:
+    build:
+      context: .
+      dockerfile: Dockerfile.igpu
+      args:
+        IPEXLLM_RELEASE_REPO: intel/ipex-llm
+        IPEXLLM_RELEASE_VERSON: v2.2.0-nightly
+        IPEXLLM_PORTABLE_ZIP_FILENAME: ollama-ipex-llm-2.2.0b20250313-ubuntu.tgz
+    container_name: ollama-video
+    devices:
+      - /dev/dri:/dev/dri
+    ########
+    volumes:
+      - ./ollama:/root/.ollama
+    expose:
+      - 11434
+    ports:
+      - 11434:11434
+    environment:
+      - OLLAMA_DEBUG=1
+      - ONEAPI_DEVICE_SELECTOR=level_zero:0
+      - IPEX_LLM_NUM_CTX=16384
+    restart: unless-stopped

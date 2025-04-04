@@ -1,0 +1,2 @@
+ollama/*
+!ollama/ollama_data_directory.md
