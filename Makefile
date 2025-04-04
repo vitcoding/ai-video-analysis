@@ -14,6 +14,11 @@ stop-$(OLLAMA-NAME):
 start-$(OLLAMA-NAME):
 	docker compose -f $(OLLAMA-DC) start
 
+# ollama commands
+# docker exec -it ollama-video ollama list
+# docker exec -it ollama-video ollama pull llava:7b
+# docker exec -it ollama-video ollama rm llava:7b
+
 # projects
 app-prj:
 	codium app
