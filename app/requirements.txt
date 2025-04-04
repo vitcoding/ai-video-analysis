@@ -1,0 +1,4 @@
+ollama==0.4.7
+opencv-python==4.11.0.86
+pillow==11.1.0
+numpy==2.2.4
