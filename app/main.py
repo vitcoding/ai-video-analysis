@@ -57,11 +57,13 @@ def analyze_video_with_llava(video_path, prompt):
         try:
             # Send to LLaVA via Ollama
             response = ollama.generate(
-                model="llava:7b",
+                model="llama3.2-vision:11b",
+                # model="llava:7b",
                 prompt=prompt,
                 images=[temp_image_path],
                 stream=False,
             )
+            print(response)
 
             responses.append(response["response"])
 
@@ -72,7 +74,10 @@ def analyze_video_with_llava(video_path, prompt):
 
     # Combine all responses
     full_response = "\n".join(
-        [f"Frame {i+1} analysis:\n{resp}\n" for i, resp in enumerate(responses)]
+        [
+            f"Frame {i+1} analysis:\n{resp}\n"
+            for i, resp in enumerate(responses)
+        ]
     )
 
     return full_response
@@ -93,9 +98,20 @@ def main():
     #     ollama.pull("llava:7b")
 
     # The prompt to the model
-    prompt = """Describe what is happening in this video. Pay attention to details. 
-    If you see sports - specify which sport and what's happening. 
-    If you see people - describe their actions."""
+    # prompt = """Describe what is happening in this video. Pay attention to details.
+    # If you see sports - specify which sport and what's happening.
+    # If you see people - describe their actions.
+
+    # You need to answer in Russian language.
+    # """
+    prompt = """
+Describe what is happening in this video. Pay attention to details. 
+
+If you see a person: describe their appearance (gender, approximate age, clothing), facial expressions, and their immediate environment (objects, background).
+If you see people: describe their actions.
+If you see text: transcribe it exactly and describe its context (where it appears, font style, possible purpose).
+If you see objects: mention their type, color and how they're being used.
+"""
 
     print(f"Analyzing video {video_path}...")
     analysis_result = analyze_video_with_llava(video_path, prompt)
