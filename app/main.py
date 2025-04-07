@@ -1,15 +1,15 @@
 import os
-import time
 
 import cv2
-import numpy as np
 import ollama
 from PIL import Image
+
+from prompts.video_frames_analysis import video_frame_prompt
 
 
 def extract_key_frames(video_path, max_frames=5, target_fps=0.05):
     """
-    Extracts key frames from video with reduced frame rate
+    Extracts key frames from video with reduced frame rate.
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -38,9 +38,9 @@ def extract_key_frames(video_path, max_frames=5, target_fps=0.05):
     return frames
 
 
-def analyze_video_with_llava(video_path, prompt):
+def analyze_video_frames(video_path, prompt):
     """
-    Analyzes video using LLaVA through Ollama
+    Analyzes video frames using LLM vision model.
     """
     # Extract key frames
     key_frames = extract_key_frames(video_path)
@@ -84,6 +84,10 @@ def analyze_video_with_llava(video_path, prompt):
 
 
 def main():
+    """
+    The main function of video frames analysis.
+    """
+
     # Verify video exists
     video_path = "_temp/video.mp4"
     if not os.path.exists(video_path):
@@ -97,24 +101,8 @@ def main():
     #     print("Downloading llava:7b model...")
     #     ollama.pull("llava:7b")
 
-    # The prompt to the model
-    # prompt = """Describe what is happening in this video. Pay attention to details.
-    # If you see sports - specify which sport and what's happening.
-    # If you see people - describe their actions.
-
-    # You need to answer in Russian language.
-    # """
-    prompt = """
-Describe what is happening in this video. Pay attention to details. 
-
-If you see a person: describe their appearance (gender, approximate age, clothing), facial expressions, and their immediate environment (objects, background).
-If you see people: describe their actions.
-If you see text: transcribe it exactly and describe its context (where it appears, font style, possible purpose).
-If you see objects: mention their type, color and how they're being used.
-"""
-
     print(f"Analyzing video {video_path}...")
-    analysis_result = analyze_video_with_llava(video_path, prompt)
+    analysis_result = analyze_video_frames(video_path, video_frame_prompt)
 
     print("\nVideo analysis results:")
     print(analysis_result)
