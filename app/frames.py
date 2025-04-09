@@ -4,149 +4,158 @@ from pathlib import Path
 
 import cv2
 from PIL import Image
+from pydantic import BaseModel
 
 from core.logger import log
 
-
-def get_frame_interval(
-    interval_in_seconds: int | float | None,
-    max_frames: int,
-    original_fps: int,
-    video_length: float,
-    total_frames: int,
-    delta: float = 0.03,
-) -> tuple[int, int, int]:
-    """Gets a frame interval."""
-
-    delta_length = delta * video_length
-    delta_frames = int(delta * total_frames)
-    # analytical video length
-    length = video_length - 2 * delta_length
-    total_frames_delta = total_frames - 2 * delta_frames
-
-    if (interval_in_seconds is None) and max_frames > 1:
-        frame_interval = int(total_frames_delta / (max_frames - 1))
-        log.debug(f"frame_interval (max_frames): {frame_interval}")
-        return frame_interval, delta_frames, total_frames_delta
-
-    if interval_in_seconds is None:
-        frame_interval = total_frames_delta
-        log.debug(f"frame_interval (total_frames_delta): {frame_interval}")
-        return frame_interval, delta_frames, total_frames_delta
-
-    frame_interval = int(interval_in_seconds * original_fps)
-    log.debug(f"frame_interval (interval_in_seconds): {frame_interval}")
-    return frame_interval, delta_frames, total_frames_delta
+CLEAN_FRAMES_DIRECTORY = True
 
 
-def extract_key_frames(
-    video_path: str,
-    interval_in_seconds: int,
-    max_frames: int,
-    video_frames_dir: str,
-) -> list[tuple[Image.Image, int]]:
-    """
-    Extracts frames from video.
-    """
+class VideoData(BaseModel):
+    video_path: str
 
-    # clean temp frames directory
-    frames_directory_path = Path(video_frames_dir)
-    for item in frames_directory_path.glob("*"):
-        if item.is_file():
-            item.unlink()
-        elif item.is_dir():
-            shutil.rmtree(item)
+    @property
+    def name(self):
+        return self.video_path.split("/")[-1]
 
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise ValueError(f"Could not open video {video_path}")
 
-    original_fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_length = total_frames / original_fps  # in seconds
+class VideoFramesManager:
+    def __init__(
+        self,
+        video: VideoData,
+        interval_in_seconds: int | float | None,
+        max_frames: int,
+        video_frames_dir: str,
+        delta: float = 0.03,
+    ) -> None:
+        self.video = video
+        self.interval_in_seconds = interval_in_seconds
+        self.max_frames = max_frames
+        self.video_frames_dir = video_frames_dir
+        self.delta = delta
 
-    log.debug(
-        f"Video data: \noriginal_fps: {original_fps}"
-        f"\ntotal_frames: {total_frames}"
-        f"\nvideo_length: {video_length:.1f} s"
-    )
+    def _get_frame_interval(self) -> int:
+        """Gets a frame interval."""
 
-    frame_interval, delta_frames, total_frames_delta = get_frame_interval(
-        interval_in_seconds,
-        max_frames,
-        original_fps,
-        video_length,
-        total_frames,
-    )
+        self.delta_length = self.delta * self.video_length
+        self.delta_frames = int(self.delta * self.total_frames)
+        # analytical video length
+        self.analytical_length = self.video_length - 2 * self.delta_length
+        self.start_frame = int(self.total_frames * self.delta)
+        self.analytical_frames = self.total_frames - 2 * self.delta_frames
 
-    frames = []
-    frame_count = int(delta_frames)
+        if (self.interval_in_seconds is None) and self.max_frames > 1:
+            frame_interval = int(
+                self.analytical_frames / (self.max_frames - 1)
+            )
+            log.debug(f"frame_interval (max_frames): {frame_interval}")
+            return frame_interval
 
-    while frame_count < total_frames_delta:
-        ret, frame = cap.read()
+        if self.interval_in_seconds is None:
+            frame_interval = self.analytical_frames
+            log.debug(f"frame_interval (total_frames_delta): {frame_interval}")
+            return frame_interval
 
-        if frame_count < delta_frames:
+        frame_interval = int(self.interval_in_seconds * self.original_fps)
+        log.debug(f"frame_interval (interval_in_seconds): {frame_interval}")
+        return frame_interval
+
+    def clean_frames_directory(self):
+        frames_directory_path = Path(self.video_frames_dir)
+        for item in frames_directory_path.glob("*"):
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+
+    def _extract_key_frames(
+        self, clean_frames_dir: bool = CLEAN_FRAMES_DIRECTORY
+    ) -> list[tuple[Image.Image, int]]:
+        """
+        Extracts frames from video.
+        """
+
+        if clean_frames_dir:
+            # clean frames directory
+            self.clean_frames_directory()
+
+        cap = cv2.VideoCapture(self.video.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Could not open video {self.video.video_path}")
+
+        self.original_fps = cap.get(cv2.CAP_PROP_FPS)
+        self.total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.video_length = self.total_frames / self.original_fps  # in seconds
+        log.debug(
+            f"Video data: \noriginal_fps: {self.original_fps}"
+            f"\ntotal_frames: {self.total_frames}"
+            f"\nvideo_length: {self.video_length:.1f} s"
+        )
+        self.frame_interval = self._get_frame_interval()
+
+        frames = []
+        frame_count = 1
+
+        while frame_count < (self.analytical_frames + self.delta_frames):
+            ret, frame = cap.read()
+
+            if frame_count < self.delta_frames:
+                frame_count += 1
+                continue
+
+            if not ret:
+                break
+
+            if (frame_count - self.delta_frames) % self.frame_interval == 0:
+                # Convert BGR (OpenCV) to RGB (Pillow)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frames.append((Image.fromarray(frame_rgb), frame_count))
+
             frame_count += 1
-            continue
 
-        if not ret:
-            break
-
-        if (frame_count - delta_frames) % frame_interval == 0:
-            # Convert BGR (OpenCV) to RGB (Pillow)
+        if self.interval_in_seconds is not None or self.max_frames < 3:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append((Image.fromarray(frame_rgb), frame_count))
 
-        frame_count += 1
+        cap.release()
+        return frames
 
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frames.append((Image.fromarray(frame_rgb), frame_count))
+    def get_video_frames(self) -> list[str]:
+        """
+        Gets video frames and saves them.
+        """
 
-    cap.release()
-    return frames
+        log.info(f"Getting frames from the video...")
 
+        # Extract key frames
+        key_frames = self._extract_key_frames()
 
-def get_video_frames(
-    video_path: str,
-    interval_in_seconds: int | None,
-    max_frames: int,
-    video_frames_dir: str,
-) -> list[str]:
-    """
-    Gets video frames and saves them.
-    """
+        image_paths = []
 
-    log.info(f"Getting frames from the video...")
+        counter = 1
+        for frame, i in key_frames:
 
-    # Extract key frames
-    key_frames = extract_key_frames(
-        video_path, interval_in_seconds, max_frames, video_frames_dir
-    )
+            # Save a frame image
+            if not os.path.exists(self.video_frames_dir):
+                os.makedirs(self.video_frames_dir)
+            temp_image_path = f"{self.video_frames_dir}/temp_frame_{i}.jpg"
+            frame.save(temp_image_path)
+            image_paths.append(temp_image_path)
 
-    image_paths = []
+            counter += 1
 
-    counter = 1
-    for frame, i in key_frames:
-
-        # Save a frame image
-        if not os.path.exists(video_frames_dir):
-            os.makedirs(video_frames_dir)
-        temp_image_path = f"{video_frames_dir}/temp_frame_{i}.jpg"
-        frame.save(temp_image_path)
-        image_paths.append(temp_image_path)
-
-        counter += 1
-
-    log.debug(f"image_paths: \n{image_paths}")
-    return image_paths
+        log.debug(f"image_paths: \n{image_paths}")
+        return image_paths
 
 
 if __name__ == "__main__":
     video_path = "_temp/video.mp4"
-    get_video_frames(
-        video_path,
-        # interval_in_seconds=None,
-        interval_in_seconds=50,
-        max_frames=5,
+    video = VideoData(video_path=video_path)
+    frames_manager = VideoFramesManager(
+        video,
+        # interval_in_seconds=50,
+        interval_in_seconds=None,
+        max_frames=2,
         video_frames_dir="_temp/video_frames/test",
     )
+    frames_manager.get_video_frames()

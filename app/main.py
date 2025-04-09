@@ -3,7 +3,7 @@ import os
 import ollama
 
 from core.logger import log
-from frames import get_video_frames
+from frames import VideoData, VideoFramesManager
 from prompts.video_frames_analysis import video_frame_prompt
 from prompts.video_frames_summary import get_summary_prompt
 
@@ -24,15 +24,18 @@ def analyze_video_frames(
 
     # Extract key frames
     frames_directory = "_temp/video_frames"
-    video_name = video_path.split("/")[-1].replace(".", "_")
-    video_frames_dir = f"{frames_directory}/{video_name}"
-    os.makedirs(video_frames_dir)
-    image_paths = get_video_frames(
-        video_path,
+    video = VideoData(video_path=video_path)
+    directory_name = video.name.replace(".", "_")
+    video_frames_dir = f"{frames_directory}/{directory_name}"
+    frames_manager = VideoFramesManager(
+        video,
         interval_in_seconds=interval_in_seconds,
         max_frames=max_frames,
         video_frames_dir=video_frames_dir,
     )
+    # os.makedirs(video_frames_dir)
+    image_paths = frames_manager.get_video_frames()
+    log.debug(f"\nimage_paths: \n{image_paths}")
 
     responses = []
 
