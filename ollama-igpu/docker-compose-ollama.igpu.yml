@@ -1,3 +1,5 @@
+name: video-analysis-llm
+
 services:
   ollama-video:
     build:
