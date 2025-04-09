@@ -8,16 +8,50 @@ from PIL import Image
 from core.logger import log
 
 
+def get_frame_interval(
+    interval_in_seconds: int | float | None,
+    max_frames: int,
+    original_fps: int,
+    video_length: float,
+    total_frames: int,
+    delta: float = 0.03,
+) -> tuple[int, int, int]:
+    """Gets a frame interval."""
+
+    delta_length = delta * video_length
+    delta_frames = int(delta * total_frames)
+    # analytical video length
+    length = video_length - 2 * delta_length
+    total_frames_delta = total_frames - 2 * delta_frames
+
+    if (interval_in_seconds is None) and max_frames > 1:
+        frame_interval = int(total_frames_delta / (max_frames - 1))
+        log.debug(f"frame_interval (max_frames): {frame_interval}")
+        return frame_interval, delta_frames, total_frames_delta
+
+    if interval_in_seconds is None:
+        frame_interval = total_frames_delta
+        log.debug(f"frame_interval (total_frames_delta): {frame_interval}")
+        return frame_interval, delta_frames, total_frames_delta
+
+    frame_interval = int(interval_in_seconds * original_fps)
+    log.debug(f"frame_interval (interval_in_seconds): {frame_interval}")
+    return frame_interval, delta_frames, total_frames_delta
+
+
 def extract_key_frames(
-    video_path: str, interval_in_seconds: int, max_frames: int
+    video_path: str,
+    interval_in_seconds: int,
+    max_frames: int,
+    video_frames_dir: str,
 ) -> list[tuple[Image.Image, int]]:
     """
     Extracts frames from video.
     """
 
     # clean temp frames directory
-    temp_frames_directory_path = Path("./_temp/video_frames")
-    for item in temp_frames_directory_path.glob("*"):
+    frames_directory_path = Path(video_frames_dir)
+    for item in frames_directory_path.glob("*"):
         if item.is_file():
             item.unlink()
         elif item.is_dir():
@@ -29,7 +63,7 @@ def extract_key_frames(
 
     original_fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_length = total_frames / original_fps
+    video_length = total_frames / original_fps  # in seconds
 
     log.debug(
         f"Video data: \noriginal_fps: {original_fps}"
@@ -37,24 +71,12 @@ def extract_key_frames(
         f"\nvideo_length: {video_length:.1f} s"
     )
 
-    DELTA = 0.03
-    delta_length = DELTA * video_length
-    delta_frames = int(DELTA * total_frames)
-    # analytical video length
-    length = video_length - 2 * delta_length
-    frames_from_interval = length // interval_in_seconds
-
-    log.debug(
-        f"Key frames number: \nmax_frames: {max_frames}"
-        f"\nframes_from_interval: {frames_from_interval}"
-    )
-
-    total_frames_delta = total_frames - 2 * delta_frames
-    frames_number = min(frames_from_interval, max_frames - 1)
-    frame_interval = (
-        int(total_frames_delta / frames_number)
-        if frames_number > 0
-        else int(total_frames_delta / frames_from_interval)
+    frame_interval, delta_frames, total_frames_delta = get_frame_interval(
+        interval_in_seconds,
+        max_frames,
+        original_fps,
+        video_length,
+        total_frames,
     )
 
     frames = []
@@ -86,9 +108,9 @@ def extract_key_frames(
 
 def get_video_frames(
     video_path: str,
-    interval_in_seconds: int = 5,
-    max_frames: int = 5,
-    video_frames_dir: str = "_temp/video_frames",
+    interval_in_seconds: int | None,
+    max_frames: int,
+    video_frames_dir: str,
 ) -> list[str]:
     """
     Gets video frames and saves them.
@@ -98,7 +120,7 @@ def get_video_frames(
 
     # Extract key frames
     key_frames = extract_key_frames(
-        video_path, interval_in_seconds, max_frames
+        video_path, interval_in_seconds, max_frames, video_frames_dir
     )
 
     image_paths = []
@@ -121,4 +143,10 @@ def get_video_frames(
 
 if __name__ == "__main__":
     video_path = "_temp/video.mp4"
-    get_video_frames(video_path)
+    get_video_frames(
+        video_path,
+        # interval_in_seconds=None,
+        interval_in_seconds=50,
+        max_frames=5,
+        video_frames_dir="_temp/video_frames/test",
+    )

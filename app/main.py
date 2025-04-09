@@ -12,15 +12,26 @@ LLM_MODEL = "llama3.2-vision:11b"
 
 
 def analyze_video_frames(
-    video_path: str, prompt: str, remove_images: bool = False
+    video_path: str,
+    prompt: str,
+    interval_in_seconds: int | float | None,
+    max_frames: int,
+    remove_images: bool = False,
 ):
     """
     Analyzes video frames using vision model.
     """
 
     # Extract key frames
+    frames_directory = "_temp/video_frames"
+    video_name = video_path.split("/")[-1].replace(".", "_")
+    video_frames_dir = f"{frames_directory}/{video_name}"
+    os.makedirs(video_frames_dir)
     image_paths = get_video_frames(
-        video_path, interval_in_seconds=3, max_frames=3
+        video_path,
+        interval_in_seconds=interval_in_seconds,
+        max_frames=max_frames,
+        video_frames_dir=video_frames_dir,
     )
 
     responses = []
@@ -73,13 +84,16 @@ def summarize_video_frames(frames_analysis_result: str) -> str:
     return summary_response["response"]
 
 
-def main():
+def main(
+    video_path: str,
+    interval_in_seconds: int | float | None,
+    max_frames: int,
+) -> None:
     """
     The main function of video frames analysis.
     """
 
     # Verify video exists
-    video_path = "_temp/video.mp4"
     if not os.path.exists(video_path):
         log.error(f"Error: Video '{video_path}' not found in root directory!")
         return
@@ -94,7 +108,11 @@ def main():
 
     log.info(f"Analyzing video {video_path}...")
     analysis_result = analyze_video_frames(
-        video_path, video_frame_prompt, remove_images=False
+        video_path,
+        video_frame_prompt,
+        interval_in_seconds=interval_in_seconds,
+        max_frames=max_frames,
+        remove_images=False,
     )
 
     log.info(f"\nVideo analysis results: \n{analysis_result}")
@@ -104,4 +122,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(
+        "_temp/video.mp4",
+        interval_in_seconds=None,
+        max_frames=2,
+    )
